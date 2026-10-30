@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+models/
+data/runs/
+notebooks/*.html
+~$*
+*.iso
+/mini_project.pdf
+/Abstract.pdf
+/*.docx
+/docs/Privacy_CCTV_Report.docx
