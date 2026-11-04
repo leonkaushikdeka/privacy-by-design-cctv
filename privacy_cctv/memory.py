@@ -17,6 +17,20 @@ class Track:
     hits: int
 
 
+def _match(track: Box, box: Box, min_iou: float) -> float:
+    """Overlap, or for a fast-moving object of the same kind, closeness of centres. Without the
+    second test a phone moved across the frame leaves a trail of held masks behind it."""
+    iou = track.iou(box)
+    if iou >= min_iou:
+        return 1.0 + iou
+    if track.source != box.source:
+        return 0.0
+    (tx, ty), (bx, by) = track.center, box.center
+    reach = 0.75 * max(track.w, track.h, box.w, box.h)
+    dist = ((tx - bx) ** 2 + (ty - by) ** 2) ** 0.5
+    return 1.0 - dist / reach if dist < reach else 0.0
+
+
 class RegionMemory:
     def __init__(self, hold_frames: int, match_iou: float = 0.2) -> None:
         self.hold_frames = hold_frames
@@ -27,11 +41,11 @@ class RegionMemory:
         unmatched = list(range(len(self._tracks)))
         fresh: list[Track] = []
         for b in boxes:
-            best, best_iou = None, self.match_iou
+            best, best_score = None, 0.0
             for i in unmatched:
-                iou = self._tracks[i].box.iou(b)
-                if iou >= best_iou:
-                    best, best_iou = i, iou
+                score = _match(self._tracks[i].box, b, self.match_iou)
+                if score > best_score:
+                    best, best_score = i, score
             if best is not None:
                 unmatched.remove(best)
                 fresh.append(Track(b, self.hold_frames, self._tracks[best].hits + 1))

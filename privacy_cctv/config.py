@@ -55,6 +55,11 @@ class PrivacyConfig:
     zoom_crops: int = 3
     # Strict policy for PIN-pad zones (banks, ATMs): mask every payment device, touched or not.
     mask_all_devices: bool = False
+    # Mask payment cards (and other small card/phone-like objects) held in a hand. COCO has no card
+    # class, but on a close crop around a hand the detector usually reads a held card as one of these.
+    mask_cards: bool = False
+    held_labels: tuple[str, ...] = ("cell phone", "remote", "book")
+    held_score: float = 0.12
 
     mask_cells: int = 6
     video_mode: bool = False
@@ -69,6 +74,11 @@ class PrivacyConfig:
 PROFILES = {
     "hostel": PrivacyConfig(pin_privacy=False, sensitive_parts=EXPOSED_PARTS + MALE_CHEST + UNDERWEAR_PARTS),
     "retail": PrivacyConfig(sensitive_parts=EXPOSED_PARTS),
-    "bank": PrivacyConfig(sensitive_parts=EXPOSED_PARTS, hold_frames=18, mask_all_devices=True),
+    "bank": PrivacyConfig(sensitive_parts=EXPOSED_PARTS, hold_frames=18, mask_all_devices=True, mask_cards=True),
+    # Live webcam presentation: every phone, POS terminal and card in view is masked, PIN entry filled solid.
+    # Hands close to a webcam make the body-part detector see fingers as genitalia (scores up to ~0.46),
+    # so the body thresholds are stricter here than for a ceiling CCTV camera.
+    "demo": PrivacyConfig(sensitive_parts=EXPOSED_PARTS, mask_all_devices=True, mask_cards=True, hold_frames=6,
+                          part_score_low=0.40, part_score_high=0.60),
     "all": PrivacyConfig(),
 }

@@ -66,6 +66,19 @@ def test_memory_refreshes_a_moving_region_instead_of_duplicating_it():
     assert len(active) == 1 and active[0].x1 == 2
 
 
+def test_memory_follows_a_fast_moving_object_instead_of_leaving_a_trail():
+    mem = RegionMemory(hold_frames=5)
+    mem.update([Box(0, 0, 40, 40, source="device")])
+    active = mem.update([Box(25, 0, 65, 40, source="device")])  # IoU about 0.2 or less: moved fast
+    assert len(active) == 1 and active[0].x1 == 25
+
+
+def test_memory_keeps_distant_objects_as_separate_regions():
+    mem = RegionMemory(hold_frames=5)
+    mem.update([Box(0, 0, 20, 20, source="device")])
+    assert len(mem.update([Box(200, 200, 220, 220, source="device")])) == 2
+
+
 def test_score_image_full_cover_and_no_over_mask():
     gt = [Box(10, 10, 30, 30)]
     s = score_image("x", (100, 100, 3), gt, gt)

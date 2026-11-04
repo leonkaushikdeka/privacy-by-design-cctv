@@ -140,6 +140,56 @@ def test_pipeline_keeps_masking_for_hold_frames_after_evidence_disappears():
     assert states == [True, True, True, True, False, False]
 
 
+class _Phone(_Empty):
+    def __call__(self, *a, **k):
+        return [PHONE]
+
+
+def test_demo_profile_pixelates_an_idle_phone_instead_of_filling_it():
+    frame = np.random.default_rng(3).integers(0, 255, (240, 320, 3), dtype=np.uint8)
+    cfg = PrivacyConfig(body_privacy=False, mask_all_devices=True)
+    p = PrivacyPipeline(cfg, hands=_Empty(), hands_roi=_Empty(), devices=_Phone(), devices_roi=_Empty())
+    r = p.process(frame)
+    assert [g.source for g in r.regions] == ["device"]
+    colours = len(np.unique(frame[90:150, 90:130].reshape(-1, 3), axis=0))
+    assert 1 < colours <= 36  # pixelated cells, not a solid fill
+
+
+def test_card_held_in_a_tracked_hand_is_masked():
+    card = Box(95, 100, 150, 135, label="remote", score=0.3, source="devices")
+
+    class _Hands(_Empty):
+        def __call__(self, *a, **k):
+            return [make_hand((110, 120))]
+
+    class _Held(_Empty):
+        def in_crop(self, *a, **k):
+            return [card]
+
+    cfg = PrivacyConfig(body_privacy=False, mask_cards=True)
+    p = PrivacyPipeline(cfg, hands=_Hands(), hands_roi=_Empty(), devices=_Empty(), devices_roi=_Empty(),
+                        held=_Held())
+    r = p.process(np.zeros((240, 320, 3), np.uint8))
+    assert "card" in {g.source for g in r.regions} and r.cards == (card,)
+
+
+def test_object_away_from_every_hand_is_not_treated_as_a_held_card():
+    far = Box(250, 10, 300, 40, label="remote", score=0.3, source="devices")
+
+    class _Hands(_Empty):
+        def __call__(self, *a, **k):
+            return [make_hand((110, 120))]
+
+    class _Held(_Empty):
+        def in_crop(self, *a, **k):
+            return [far]
+
+    cfg = PrivacyConfig(body_privacy=False, mask_cards=True)
+    p = PrivacyPipeline(cfg, hands=_Hands(), hands_roi=_Empty(), devices=_Empty(), devices_roi=_Empty(),
+                        held=_Held())
+    assert p.process(np.zeros((240, 320, 3), np.uint8)).cards == ()
+
+
 def test_pipeline_fails_closed_when_masking_itself_raises(monkeypatch):
     import privacy_cctv.pipeline as pl
 

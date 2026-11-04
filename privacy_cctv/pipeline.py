@@ -44,6 +44,7 @@ class FrameResult:
     devices: tuple[Box, ...] = ()
     parts: tuple[Box, ...] = ()
     interactions: tuple[Interaction, ...] = ()
+    cards: tuple[Box, ...] = ()
 
     @property
     def pin_active(self) -> bool:
@@ -63,7 +64,7 @@ class _Clock:
 
 class PrivacyPipeline:
     def __init__(self, cfg: PrivacyConfig | None = None, *, pose=None, hands=None, hands_roi=None, devices=None,
-                 devices_roi=None, body_parts=None) -> None:
+                 devices_roi=None, body_parts=None, held=None) -> None:
         self.cfg = cfg = cfg or PrivacyConfig()
         m = cfg.models_dir
         if cfg.body_privacy:
@@ -77,6 +78,8 @@ class PrivacyPipeline:
             self.devices_roi = devices_roi or DeviceDetector(m / cfg.device_model, cfg.device_labels,
                                                              cfg.device_score, video=False)
             self.pin = PinGuard(cfg)
+            if cfg.mask_cards:
+                self.held = held or DeviceDetector(m / cfg.device_model, cfg.held_labels, cfg.held_score, video=False)
         self._body_mem = RegionMemory(cfg.hold_frames)
         self._pin_mem = RegionMemory(cfg.hold_frames)
         self._pool = ThreadPoolExecutor(max_workers=3) if cfg.parallel else None
@@ -99,7 +102,8 @@ class PrivacyPipeline:
             return FrameResult(frame, (), clock.t, fault=f"{type(e).__name__}: {e}")
         clock.t["total"] = (time.perf_counter() - t0) * 1000
         return FrameResult(frame, tuple(regions), clock.t, None, tuple(found["people"]), tuple(found["hands"]),
-                           tuple(found["devices"]), tuple(found["parts"]), tuple(found["interactions"]))
+                           tuple(found["devices"]), tuple(found["parts"]), tuple(found["interactions"]),
+                           tuple(found["cards"]))
 
     def _run(self, fn, *args):
         if self._pool is None:
@@ -123,7 +127,8 @@ class PrivacyPipeline:
 
     def _detect_all(self, frame: np.ndarray, ts: int | None, clock: _Clock) -> dict:
         image = clock("prep", to_mp_image, frame)
-        out = {"people": [], "hands": [], "devices": [], "parts": [], "interactions": [], "body": [], "pin": []}
+        out = {"people": [], "hands": [], "devices": [], "parts": [], "interactions": [], "body": [], "pin": [],
+               "cards": []}
         # The body branch (pose -> parts), the device detector and the hand tracker are independent
         # on the same frame, so they run concurrently, as separate engines would on a camera SoC.
         body = self._run(self._body_branch, frame, image, ts, clock) if self.cfg.body_privacy else None
@@ -143,8 +148,12 @@ class PrivacyPipeline:
             out["interactions"] = clock("fuse", self.pin, out["hands"], out["devices"], heads)
             out["pin"] = [it.mask_box.expand(self.cfg.pin_box_expand) for it in out["interactions"]]
             if self.cfg.mask_all_devices:
-                out["pin"] += [replace(d, label="DEVICE", source="pin").expand(self.cfg.pin_box_expand)
+                # an idle device is pixelated; one being typed on is already in the solid PIN mask
+                out["pin"] += [replace(d, label="DEVICE", source="device").expand(self.cfg.pin_box_expand)
                                for d in out["devices"] if not at_head(d, heads)]
+            if self.cfg.mask_cards:
+                out["cards"] = clock("cards", self._held_objects, frame, out["hands"])
+                out["pin"] += [replace(c, label="CARD", source="card").expand(0.15) for c in out["cards"]]
         if self.cfg.body_privacy:
             out["body"] = clock("fuse", self.body.fuse, out["parts"], out["people"], out["hands"])
         return out
@@ -187,6 +196,15 @@ class PrivacyPipeline:
             found += [d for d in self.devices_roi.in_crop(frame, crop) if d.intersection(h.box.expand(0.5)) > 0]
         return found
 
+    def _held_objects(self, frame: np.ndarray, hands: list) -> list[Box]:
+        """A shown card is a held card: look closely around each hand (at any size) with a low
+        threshold, and keep what the hand is actually holding."""
+        found = []
+        for h in self._budget(sorted(hands, key=lambda h: -h.size)):
+            crop = _square(h.box.center, 2.6 * h.size)
+            found += [d for d in self.held.in_crop(frame, crop) if d.intersection(h.box.expand(0.3)) > 0]
+        return found
+
     def _budget(self, candidates: list) -> list:
         """At most `zoom_crops` crops per pass; on video the start rotates each frame so every
         candidate is revisited within a few frames (the temporal hold covers the gap)."""
@@ -211,7 +229,7 @@ class PrivacyPipeline:
     def close(self) -> None:
         if self._pool:
             self._pool.shutdown(wait=True)
-        for name in ("pose", "hands", "hands_roi", "devices", "devices_roi"):
+        for name in ("pose", "hands", "hands_roi", "devices", "devices_roi", "held"):
             obj = getattr(self, name, None)
             if obj is not None and hasattr(obj, "close"):
                 obj.close()

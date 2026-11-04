@@ -56,17 +56,29 @@ Requires Python 3.12 (MediaPipe has no wheels for newer versions yet).
 python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt          # Windows; use .venv/bin/pip elsewhere
 .venv\Scripts\python scripts/fetch_assets.py            # downloads the MediaPipe models into models/
-.venv\Scripts\python -m pytest tests                    # 26 unit tests
+.venv\Scripts\python -m pytest tests                    # 31 unit tests
 .venv\Scripts\jupyter lab notebooks/privacy_cctv_demo.ipynb
 ```
 
-Live webcam prototype (only masked frames are ever shown or saved):
+### Live webcam demo
+
+Only masked frames are ever shown or saved.
 
 ```bash
-.venv\Scripts\python app/run_camera.py --source 0 --profile retail --record data/runs/demo.mp4 --log data/runs/demo.csv
+.venv\Scripts\python app/run_camera.py --labels --fullscreen
 ```
 
-Press `g` while actually typing a PIN to log ground truth, and `q` to quit. The last notebook cell turns the log into frame-level recall, false-mask rate and FPS. Profiles: `retail`, `hostel` (also masks underwear-level regions), `bank` (masks every payment device), `all`.
+| Hold up | What you see |
+|---|---|
+| a phone or a POS terminal | pixelated (`PHONE / POS`) |
+| a credit or debit card | pixelated (`CARD`) |
+| a finger typing on the phone | phone and hand filled solid (`PIN ENTRY`) |
+
+Keys: `l` labels on/off, `f` full screen, `q` quit. Add `--no-body` to skip body privacy for smoother frames. The default profile is `demo`; others are `retail`, `hostel` (also masks underwear-level regions), `bank` (masks every payment device and card) and `all`.
+
+COCO has no card class. Cards are caught by re-running the object detector on a close crop around each tracked hand, where a held card is usually read as a phone or remote, so keep the card in your hand and facing the camera.
+
+To record your own test with ground truth, add `--profile retail --record data/runs/demo.mp4 --log data/runs/demo.csv`, press `g` while actually typing a PIN, and run the last notebook cell on the log.
 
 ## Repository layout
 
