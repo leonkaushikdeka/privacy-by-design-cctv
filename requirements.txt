@@ -3,6 +3,8 @@ nudenet==3.4.2
 onnxruntime==1.31.1
 opencv-python==5.0.0.93
 numpy==2.5.4
+streamlit==1.66.1
+streamlit-webrtc==0.79.1
 matplotlib
 pandas
 jupyter

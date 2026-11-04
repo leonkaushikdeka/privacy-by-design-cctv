@@ -60,6 +60,14 @@ python -m venv .venv
 .venv\Scripts\jupyter lab notebooks/privacy_cctv_demo.ipynb
 ```
 
+### Web app
+
+```bash
+.venv\Scripts\streamlit run app/streamlit_app.py
+```
+
+Opens http://localhost:8501 with three tabs: **Live camera** (browser webcam over WebRTC, masked on the server before it comes back to the page), **Try a file** (upload a photo or a short video, or pick a sample) and **Results** (evaluation numbers and figures). The profile and the label, body-privacy and mirror switches are in the sidebar.
+
 ### Live webcam demo
 
 Only masked frames are ever shown or saved.
@@ -84,7 +92,8 @@ To record your own test with ground truth, add `--profile retail --record data/r
 
 ```
 privacy_cctv/        pipeline: detectors, body privacy, PIN guard, temporal hold, masking, metrics
-app/run_camera.py    live webcam prototype
+app/run_camera.py    live webcam prototype (OpenCV window)
+app/streamlit_app.py web app: live camera, file upload, results
 notebooks/           demonstration and evaluation notebook
 tests/               unit tests
 data/samples/        test images + sources.json (author, licence and link for every image)
