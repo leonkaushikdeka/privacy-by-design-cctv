@@ -66,7 +66,7 @@ python -m venv .venv
 .venv\Scripts\streamlit run app/streamlit_app.py
 ```
 
-Opens http://localhost:8501 with three tabs: **Live camera** (browser webcam over WebRTC, masked on the server before it comes back to the page), **Try a file** (upload a photo or a short video, or pick a sample) and **Results** (evaluation numbers and figures). The profile and the label, body-privacy and mirror switches are in the sidebar.
+Opens http://localhost:8502 with three tabs: **Live camera** (browser webcam over WebRTC, masked on the server before it comes back to the page), **Try a file** (upload a photo or a short video, or pick a sample) and **Results** (evaluation numbers and figures). The profile and the label, body-privacy and mirror switches are in the sidebar.
 
 ### Live webcam demo
 

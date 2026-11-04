@@ -1,3 +1,6 @@
+[server]
+port = 8502
+
 [client]
 toolbarMode = "minimal"
 
